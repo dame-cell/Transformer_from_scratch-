@@ -121,3 +121,42 @@ class sequential_Encoder(nn.Module):
         return x
 
 
+
+input_sentence = "my name is dame rajee"
+
+# Tokenize the input sentence
+tokens = input_sentence.split()
+
+# Map tokens to token IDs (replace with your actual mapping)
+# In this example, I'm using a simple vocabulary where each word has a unique ID
+vocab = {"my": 0, "name": 1, "is": 2, "dame": 3, "rajee": 4}
+token_ids = [vocab[token] for token in tokens]
+
+# Define model parameters
+d_model = 100
+ffn_hidden = 200
+num_heads = 2
+drop_prob = 0.1
+num_layers = 2
+batch_size = 1
+max_sequence_length = len(token_ids)
+
+x = torch.randn(batch_size, max_sequence_length, d_model)
+
+# Create Positional Encoding
+positional_encoder = PositionalEncoding(d_model, max_sequence_length)
+
+# Apply positional encoding to the input tensor
+input_with_position = x + positional_encoder()
+
+# Convert token_ids to a tensor (batch size of 1)
+input_tensor = torch.tensor([token_ids])
+
+# Create the Encoder
+encoder = sequential_Encoder(d_model, ffn_hidden, num_heads, drop_prob, num_layers)
+
+# Pass the input through the Encoder
+encoded_output = encoder(input_with_position)
+
+# The encoded_output now contains the encoded representation of the input sentence
+print(encoded_output)
