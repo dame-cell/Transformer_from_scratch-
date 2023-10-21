@@ -128,14 +128,13 @@ class DecoderLayer(nn.Module):
 
     
 class sequential_decoder(nn.Module):
-    
     def __init__(self, d_model, ffn_hidden, num_heads, drop_prob, num_layers):
         super().__init__()
-        self.layers = nn.Sequential(*[DecoderLayer(d_model, ffn_hidden, num_heads, drop_prob)
-                                     for _ in range(num_layers)])
-     
-    def forward(self, x):
-        x = self.layers(x)
+        self.layers = nn.Sequential(*[DecoderLayer(d_model, ffn_hidden, num_heads, drop_prob) for _ in range(num_layers)])
+
+    def forward(self, x, y, decoder_mask):
+        for layer in self.layers:
+            x = layer(x, y, decoder_mask)
         return x
 
-    
+

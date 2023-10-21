@@ -1,9 +1,8 @@
 import torch.nn as nn 
 import torch
-from collections import defaultdict
- 
+
 from Encoder import sequential_Encoder , PositionalEncoding
-from Decoder import sequential_decoder ,DecoderLayer
+from Decoder import sequential_decoder 
 
 def get_device():
     return torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
