@@ -5,16 +5,12 @@ from torch import nn
 import torch.nn.functional as F
 
 def scaled_dot_product(q, k, v, mask=None):
-    # q: 30 x 8 x 200 x 64, 
-    # k: 30 x 8 x 200 x 64, 
-    # v: 30 x 8 x 200 x 64, 
-    # mask 200 x 200
     d_k = q.size()[-1] 
-    scaled = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(d_k) # 30 x 8 x 200 x 200
+    scaled = torch.matmul(q, k.transpose(-1, -2)) / math.sqrt(d_k) 
     if mask is not None:
-        scaled += mask # 30 x 8 x 200 x 200
-    attention = F.softmax(scaled, dim=-1) # 30 x 8 x 200 x 200
-    values = torch.matmul(attention, v) # 30 x 8 x 200 x 64
+        scaled += mask
+    attention = F.softmax(scaled, dim=-1) 
+    values = torch.matmul(attention, v) 
     return values, attention
 
 
@@ -27,12 +23,11 @@ class PositionwiseFeedForward(nn.Module):
         self.dropout = nn.Dropout(p=drop_prob)
 
     def forward(self, x):
-        #  x: 30 x 200 x 512
-        x = self.linear1(x) #30 x 200 x 2048
-        x = self.relu(x) #30 x 200 x 2048
-        x = self.dropout(x) #30 x 200 x 2048
-        x = self.linear2(x) #30 x 200 x 512
-        return x #30 x 200 x 512
+        x = self.linear1(x) 
+        x = self.relu(x) 
+        x = self.dropout(x) 
+        x = self.linear2(x) 
+        return x 
 
 
 class LayerNormalization(nn.Module):
@@ -40,18 +35,17 @@ class LayerNormalization(nn.Module):
         super().__init__()
         self.parameters_shape=parameters_shape
         self.eps=eps
-        self.gamma = nn.Parameter(torch.ones(parameters_shape)) # 512
-        self.beta =  nn.Parameter(torch.zeros(parameters_shape)) # 512
+        self.gamma = nn.Parameter(torch.ones(parameters_shape)) 
+        self.beta =  nn.Parameter(torch.zeros(parameters_shape)) 
 
     def forward(self, inputs):
-        # inputs : 30 x 200 x 512
-        dims = [-(i + 1) for i in range(len(self.parameters_shape))] # [-1]
-        mean = inputs.mean(dim=dims, keepdim=True) #30 x 200 x 1
-        var = ((inputs - mean) ** 2).mean(dim=dims, keepdim=True) # 30 x 200 x 512
-        std = (var + self.eps).sqrt() # 30 x 200 x 512
-        y = (inputs - mean) / std # 30 x 200 x 512
+        dims = [-(i + 1) for i in range(len(self.parameters_shape))] 
+        mean = inputs.mean(dim=dims, keepdim=True) 
+        var = ((inputs - mean) ** 2).mean(dim=dims, keepdim=True) 
+        std = (var + self.eps).sqrt()
+        y = (inputs - mean) / std
         print(f"y: {y.size()}")
-        out = self.gamma * y  + self.beta  # 30 x 200 x 512
+        out = self.gamma * y  + self.beta  
         return out
 
 class MultiHeadAttention(nn.Module):
@@ -61,20 +55,19 @@ class MultiHeadAttention(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         self.head_dim = d_model // num_heads
-        self.qkv_layer = nn.Linear(d_model , 3 * d_model) # 1536 
+        self.qkv_layer = nn.Linear(d_model , 3 * d_model)
         self.linear_layer = nn.Linear(d_model, d_model)
     
     def forward(self, x, mask=None):
-        batch_size, sequence_length, d_model = x.size() # 30 x 200 x 512 
-        qkv = self.qkv_layer(x) # 30 x 200 x 1536
-        qkv = qkv.reshape(batch_size, sequence_length, self.num_heads, 3 * self.head_dim) # 30 x 200 x 8 x 192
-        qkv = qkv.permute(0, 2, 1, 3) # 30 x 8 x 200 x 192
-        q, k, v = qkv.chunk(3, dim=-1) # q: 30 x 8 x 200 x 64, k: 30 x 8 x 200 x 64, v: 30 x 8 x 200 x 64
-        values, attention = scaled_dot_product(q, k, v, mask) # values: 30 x 8 x 200 x 64
-        values = values.reshape(batch_size, sequence_length, self.num_heads * self.head_dim) # 30 x 200 x 512
-        out = self.linear_layer(values) # 30 x 200 x 512
-        return out # 30 x 200 x 512
-
+        batch_size, sequence_length, d_model = x.size()
+        qkv = self.qkv_layer(x)
+        qkv = qkv.reshape(batch_size, sequence_length, self.num_heads, 3 * self.head_dim)
+        qkv = qkv.permute(0, 2, 1, 3) 
+        q, k, v = qkv.chunk(3, dim=-1) 
+        values, attention = scaled_dot_product(q, k, v, mask) 
+        values = values.reshape(batch_size, sequence_length, self.num_heads * self.head_dim) 
+        out = self.linear_layer(values) 
+        return out 
 
 class MultiHeadCrossAttention(nn.Module):
 
@@ -83,23 +76,23 @@ class MultiHeadCrossAttention(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         self.head_dim = d_model // num_heads
-        self.kv_layer = nn.Linear(d_model , 2 * d_model) # 1024
+        self.kv_layer = nn.Linear(d_model , 2 * d_model) 
         self.q_layer = nn.Linear(d_model , d_model)
         self.linear_layer = nn.Linear(d_model, d_model)
     
     def forward(self, x, y, mask=None):
-        batch_size, sequence_length, d_model = x.size() # 30 x 200 x 512
-        kv = self.kv_layer(x) # 30 x 200 x 1024
-        q = self.q_layer(y) # 30 x 200 x 512
-        kv = kv.reshape(batch_size, sequence_length, self.num_heads, 2 * self.head_dim)  # 30 x 200 x 8 x 128
-        q = q.reshape(batch_size, sequence_length, self.num_heads, self.head_dim)  # 30 x 200 x 8 x 64
-        kv = kv.permute(0, 2, 1, 3) # 30 x 8 x 200 x 128
-        q = q.permute(0, 2, 1, 3) # 30 x 8 x 200 x 64
-        k, v = kv.chunk(2, dim=-1) # K: 30 x 8 x 200 x 64, v: 30 x 8 x 200 x 64
-        values, attention = scaled_dot_product(q, k, v, mask) #  30 x 8 x 200 x 64
-        values = values.reshape(batch_size, sequence_length, d_model) #  30 x 200 x 512
-        out = self.linear_layer(values)  #  30 x 200 x 512
-        return out  #  30 x 200 x 512
+        batch_size, sequence_length, d_model = x.size() 
+        kv = self.kv_layer(x) 
+        q = self.q_layer(y) 
+        kv = kv.reshape(batch_size, sequence_length, self.num_heads, 2 * self.head_dim)  
+        q = q.reshape(batch_size, sequence_length, self.num_heads, self.head_dim)  
+        kv = kv.permute(0, 2, 1, 3) 
+        q = q.permute(0, 2, 1, 3) 
+        k, v = kv.chunk(2, dim=-1) 
+        values, attention = scaled_dot_product(q, k, v, mask) 
+        values = values.reshape(batch_size, sequence_length, d_model)
+        out = self.linear_layer(values)
+        return out
 
 
 class DecoderLayer(nn.Module):
@@ -117,27 +110,27 @@ class DecoderLayer(nn.Module):
         self.dropout3 = nn.Dropout(p=drop_prob)
 
     def forward(self, x, y, decoder_mask):
-        _y = y # 30 x 200 x 512
-        y = self.self_attention(y, mask=decoder_mask) # 30 x 200 x 512
-        y = self.dropout1(y) # 30 x 200 x 512
-        y = self.norm1(y + _y) # 30 x 200 x 512
+        _y = y 
+        y = self.self_attention(y, mask=decoder_mask) 
+        y = self.dropout1(y)
+        y = self.norm1(y + _y) 
 
-        _y = y # 30 x 200 x 512
-        y = self.encoder_decoder_attention(x, y, mask=None) #30 x 200 x 512
-        y = self.dropout2(y) #30 x 200 x 512
-        y = self.norm2(y + _y)  #30 x 200 x 512
+        _y = y 
+        y = self.encoder_decoder_attention(x, y, mask=None) 
+        y = self.dropout2(y) 
+        y = self.norm2(y + _y)  
 
-        _y = y  #30 x 200 x 512
-        y = self.ffn(y) #30 x 200 x 512
-        y = self.dropout3(y) #30 x 200 x 512
-        y = self.norm3(y + _y) #30 x 200 x 512
-        return y #30 x 200 x 512
+        _y = y  
+        y = self.ffn(y) 
+        y = self.dropout3(y)
+        y = self.norm3(y + _y)
+        return y 
 
 class SequentialDecoder(nn.Sequential):
     def forward(self, *inputs):
         x, y, mask = inputs
         for module in self._modules.values():
-            y = module(x, y, mask) #30 x 200 x 512
+            y = module(x, y, mask) 
         return y
 
 class Decoder(nn.Module):
@@ -147,9 +140,6 @@ class Decoder(nn.Module):
                                           for _ in range(num_layers)])
 
     def forward(self, x, y, mask):
-        #x : 30 x 200 x 512 
-        #y : 30 x 200 x 512
-        #mask : 200 x 200
-        y = self.layers(x, y, mask)
-        return y #30 x 200 x 512
 
+        y = self.layers(x, y, mask)
+        return y 
