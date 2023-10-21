@@ -126,7 +126,7 @@ class DecoderLayer(nn.Module):
         y = self.norm3(y + _y)
         return y 
 
-class SequentialDecoder(nn.Sequential):
+class sequential_decoder(nn.Sequential):
     def forward(self, *inputs):
         x, y, mask = inputs
         for module in self._modules.values():
@@ -136,7 +136,7 @@ class SequentialDecoder(nn.Sequential):
 class Decoder(nn.Module):
     def __init__(self, d_model, ffn_hidden, num_heads, drop_prob, num_layers=1):
         super().__init__()
-        self.layers = SequentialDecoder(*[DecoderLayer(d_model, ffn_hidden, num_heads, drop_prob) 
+        self.layers = sequential_decoder(*[DecoderLayer(d_model, ffn_hidden, num_heads, drop_prob) 
                                           for _ in range(num_layers)])
 
     def forward(self, x, y, mask):
