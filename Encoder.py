@@ -87,7 +87,25 @@ class PositionwiseFeedForward(nn.Module):
         x = self.linear2(x)
         return x
 
+class T5RelativePositionalEncoder(nn.Module):
+    def __init__(self, d_model, max_position=512):
+        super(T5RelativePositionalEncoder, self).__init__()
+        self.max_position = max_position
+        self.embedding = nn.Embedding(2 * max_position, d_model)
 
+    def forward(self, seq_len_q, seq_len_k):
+        # Calculate relative positions
+        range_vec_q = torch.arange(seq_len_q)
+        range_vec_k = torch.arange(seq_len_k)
+        relative_position = range_vec_k[None, :] - range_vec_q[:, None]
+        relative_position_clipped = torch.clamp(relative_position, -self.max_position, self.max_position)
+        final_mat = relative_position_clipped + self.max_position
+
+        # Use the embedding layer to get positional embeddings
+        embeddings = self.embedding(final_mat)
+
+        return embeddings
+    
 class EncoderLayer(nn.Module):
 
     def __init__(self, d_model, ffn_hidden, num_heads, drop_prob):
@@ -127,36 +145,42 @@ input_sentence = "my name is dame rajee"
 # Tokenize the input sentence
 tokens = input_sentence.split()
 
-# Map tokens to token IDs (replace with your actual mapping)
-# In this example, I'm using a simple vocabulary where each word has a unique ID
+# Map tokens to token IDs using a vocabulary (adjust the vocabulary as needed)
 vocab = {"my": 0, "name": 1, "is": 2, "dame": 3, "rajee": 4}
 token_ids = [vocab[token] for token in tokens]
 
 # Define model parameters
 d_model = 100
-ffn_hidden = 200
 num_heads = 2
-drop_prob = 0.1
+ffn_hidden = 200
 num_layers = 2
 batch_size = 1
+drop_prob =0.1
 max_sequence_length = len(token_ids)
 
+# Create a tensor to represent the input (you can replace this with your own data)
 x = torch.randn(batch_size, max_sequence_length, d_model)
 
-# Create Positional Encoding
-positional_encoder = PositionalEncoding(d_model, max_sequence_length)
+# Create the T5RelativePositionalEncoder
+positional_encoder = T5RelativePositionalEncoder(num_heads, max_sequence_length)
+
+# Calculate the sequence length based on the input tensor's shape
+seq_len_q = x.size(1)
+seq_len_k = x.size(1)
 
 # Apply positional encoding to the input tensor
-input_with_position = x + positional_encoder()
+input_with_position = x + positional_encoder(seq_len_q, seq_len_k)
 
 # Convert token_ids to a tensor (batch size of 1)
 input_tensor = torch.tensor([token_ids])
 
-# Create the Encoder
+
+
+# Create an instance of the sequential_Encoder and pass the ffn_hidden parameter
 encoder = sequential_Encoder(d_model, ffn_hidden, num_heads, drop_prob, num_layers)
 
-# Pass the input through the Encoder
+# Now you can use the encoder for encoding your input
 encoded_output = encoder(input_with_position)
 
-# The encoded_output now contains the encoded representation of the input sentence
+# The encoded_output contains the encoded representation
 print(encoded_output)
